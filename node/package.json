@@ -9,7 +9,7 @@
     "build": "vite build",
     "serve": "vite preview",
     "producer": "node src/producer.cjs",
-    "websocket": "node src/server.js" 
+    "consumer": "node src/server.js" 
   },
   "keywords": [],
   "author": "",
