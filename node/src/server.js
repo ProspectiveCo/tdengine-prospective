@@ -16,7 +16,7 @@ const TAOS_TABLENAME = 'market';
 
 if (TAOS_CONNECTION_TYPE === 'cloud') {
     // TDengine Cloud connection
-    TAOS_CONNECTION_URL = process.env.TAOS_CONNECTION_URL || `wss://YOUR_CLOUD_REGION.cloud.tdengine.com?token=YOUR_TDENGINE_CLOUD_TOKEN`;
+    TAOS_CONNECTION_URL = process.env.TDENGINE_CLOUD_URL || `wss://YOUR_CLOUD_REGION.cloud.tdengine.com?token=YOUR_TDENGINE_CLOUD_TOKEN`;
 } else if (TAOS_CONNECTION_TYPE === 'local') {
     // TDengine local docker connection
     TAOS_CONNECTION_URL = 'ws://localhost:6041';
