@@ -46,6 +46,7 @@ async function taosCreateConnection(
         if (TAOS_CONNECTION_TYPE === 'cloud') {
             conf = new taos.WSConfig(url);
             conn = await taos.sqlConnect(conf);
+            conn.setTimeOut(15_000);
             console.log(`Connected to TDengine Cloud at ${url} successfully.`);
             return conn;
         } else if (TAOS_CONNECTION_TYPE === 'local') {
@@ -105,7 +106,7 @@ async function taosQuery(conn, databaseName = TAOS_DATABASE, tableName = TAOS_TA
         return data;
     } catch (err) {
         console.error(`Failed to query table ${databaseName}.${tableName}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
-        throw err;
+        // throw err;
     }
 }
 

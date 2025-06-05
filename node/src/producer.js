@@ -156,6 +156,7 @@ async function taosCreateConnection(
         if (TAOS_CONNECTION_TYPE === 'cloud') {
             conf = new taos.WSConfig(url);
             conn = await taos.sqlConnect(conf);
+            conn.setTimeOut(15_000);
             console.log(`Connected to TDengine Cloud at ${url} successfully.`);
             return conn;
         } else if (TAOS_CONNECTION_TYPE === 'local') {
