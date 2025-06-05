@@ -6,7 +6,7 @@ import * as taos from "@tdengine/websocket";
     * Change the connection type to 'cloud' or 'local' as needed.
  ----------------------------------------------------------------
  */
-const TAOS_CONNECTION_TYPE = 'local'; // 'cloud' or 'local' (docker)
+const TAOS_CONNECTION_TYPE = 'cloud'; // 'cloud' or 'local' (docker)
 
 
 let TAOS_CONNECTION_URL, TAOS_USER, TAOS_PASSWORD;
@@ -72,13 +72,13 @@ async function taosCreateConnection(
  */
 async function taosQuery(conn, databaseName = TAOS_DATABASE, tableName = TAOS_TABLENAME) {
     try {
-        const sql = `
-            SELECT 
-                ts, ticker, sector, state, index_fund, open, high, low, close, volume, trade_count, notional, client, country, trade_date, last_update
-            FROM ${databaseName}.${tableName}
-            ORDER BY ts DESC
-            LIMIT ${PRSP_TABLE_LIMIT};
-        `;
+        const sql =
+            'SELECT ' +
+            '`ts`, `ticker`, `sector`, `state`, `index_fund`, `open`, `high`, `low`, `close`, `volume`, `trade_count`, `notional`, `client`, `country`, `trade_date`, `last_update` ' +
+            'FROM `' + databaseName + '`.`' + tableName + '` ' +
+            'ORDER BY `ts` DESC ' +
+            'LIMIT ' + PRSP_TABLE_LIMIT + ';';
+        console.log(sql);
         const wsRows = await conn.query(sql);
         const data = [];
         while (await wsRows.next()) {
@@ -89,13 +89,13 @@ async function taosQuery(conn, databaseName = TAOS_DATABASE, tableName = TAOS_TA
                 sector: row[2],
                 state: row[3],
                 index_fund: row[4],
-                open: row[5],
-                high: row[6],
-                low: row[7],
-                close: row[8],
-                volume: row[9],
-                trade_count: row[10],
-                notional: row[11],
+                open: Number(row[5]),
+                high: Number(row[6]),
+                low: Number(row[7]),
+                close: Number(row[8]),
+                volume: Number(row[9]),
+                trade_count: Number(row[10]),
+                notional: Number(row[11]),
                 client: row[12],
                 country: row[13],
                 trade_date: new Date(Number(row[14])),

@@ -6,7 +6,7 @@ import taos from "@tdengine/websocket";
     * Change the connection type to 'cloud' or 'docker' as needed.
  ----------------------------------------------------------------
  */
-const TAOS_CONNECTION_TYPE = 'local'; // 'cloud' or 'local' (docker)
+const TAOS_CONNECTION_TYPE = 'cloud'; // 'cloud' or 'local' (docker)
 
 
 let TAOS_CONNECTION_URL, TAOS_USER, TAOS_PASSWORD;
