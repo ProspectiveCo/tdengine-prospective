@@ -8,7 +8,7 @@
         <link rel="preload" href="https://cdn.jsdelivr.net/npm/@finos/perspective-viewer@3.4.3/dist/wasm/perspective-viewer.wasm" as="fetch" type="application/wasm" crossorigin="anonymous" />
         <link rel="stylesheet" crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/@finos/perspective-viewer@3.4.3/dist/css/themes.css" />
         
-        <link rel="stylesheet" href="style.css" />
+        <link rel="stylesheet" href="src/style.css" />
         <title>TDengine + Perspective</title>
     </head>
 
@@ -47,31 +47,31 @@
             theme: "Pro Dark",
             title: tableName,
             group_by: [
-                "sector"
+                "ticker"
             ],
-            split_by: ["index_fund"],
+            split_by: [],
             columns: [
                 "last_update",
-                "ticker",
                 "open",
                 "high",
                 "low",
                 "volume",
                 "trade_count",
                 "notional",
+                "sector",
             ],
             filter: [],
             sort: [],
             expressions: {},
             aggregates: {
                 last_update: "last",
-                ticker: "dominant",
                 open: "mean",
                 high: "max",
                 low: "min",
                 volume: "sum",
                 trade_count: "sum",
-                notional: "sum",
+                notional: "mean",
+                sector: "dominant",
             }
         };
         viewer.restore(viewer_config);
