@@ -23,20 +23,58 @@ Together with TDengine and Perspective users can build high-performance -- milli
 ## Getting Started
 
 This guide will walk you through the following steps:
-1. Start a TDengine database using Docker.
+1. Connect to TDengine Cloud or start a TDengine database using Docker.
 2. Install Node.js dependencies, including Vite.
 3. Run a producer script to populate the TDengine database with real-time data.
 4. Start the Perspective WebSocket server to query TDengine and serve data to the frontend.
 5. Use Vite to host the frontend `index.html` and visualize the data in real-time.
 6. Tear down all running processes.
 
-<br/><br/>
+> **Note:** To connect to _TDengine Cloud_, you will need to set your TDengine Cloud connection URL and credentials:
+> 
+> `export TDENGINE_CLOUD_URL=wss://YOUR_CLOUD_REGION.cloud.tdengine.com?token=YOUR_TDENGINE_CLOUD_TOKEN`
+
+### Run
+
+To run this demo:
+
+```bash
+git clone
+
+cd tdengine-prospective
+npm install
+
+# Set TDengine Cloud connection URL 
+# OR start the TDengine docker container
+export TDENGINE_CLOUD_URL=wss://YOUR_CLOUD_REGION.cloud.tdengine.com?token=YOUR_TDENGINE_CLOUD_TOKEN
+# ./docker.sh
+
+# Run the producer script to populate TDengine with data
+node src/producer.js
+
+# Start the Perspective server
+node src/server.js
+
+# Host the frontend with Vite
+npm run dev
+
+# Open your browser to http://localhost:3000
+```
+
+<br/>
+
+---
+
+<br/>
+
+## Details
 
 ### Step 1: Start TDengine Database
 
-Start a TDengine database in a Docker container by running the provided `docker.sh` script:
+Either set the TDengine Cloud connection URL _OR_ start a TDengine database in a Docker container by running the provided `docker.sh` script:
 
 ```bash
+export TDENGINE_CLOUD_URL=wss://YOUR_CLOUD_REGION.cloud.tdengine.com?token=YOUR_TDENGINE_CLOUD_TOKEN
 ./docker.sh
 ```
 
@@ -85,52 +123,70 @@ This script will:
 
 The scripts generates random powerline data to insert into the TDengine table:
 
-Example snippet from `src/producer.cjs`:
+Example snippet from `src/producer.js`:
 ```javascript
 function generateData(num_rows = NUM_ROWS_PER_INTERVAL) {
-    const modifier = Math.random() * (Math.random() * 50 + 1);
-    return Array.from({ length: num_rows }, (_, i) => ({
-        ts: Date.now() + i,
-        current: Math.random() * 75 + Math.random() * 10 * modifier,
-        voltage: Math.floor(Math.random() * 26) + 200,
-        phase: Math.random() * 105 + Math.random() * 3 * modifier,
-    }));
+    const results = [];
+    for (let i = 0; i < num_rows; i++) {
+        // Pick a random company
+        const metaIdx = Math.floor(Math.random() * COMPANY_METADATA.length);
+        const meta = COMPANY_METADATA[metaIdx];
+
+        // Generate price bars and metrics
+        const [lowRange, highRange] = meta.price_range;
+        const open = +(Math.random() * (highRange - lowRange) + lowRange).toFixed(2);
+        const high = +(open * (1 + Math.random() * 0.03)).toFixed(2);
+        const low = +(open * (0.97 + Math.random() * 0.03)).toFixed(2);
+        const close = +(Math.random() * (high - low) + low).toFixed(2);
+
+        const avgVol = meta.avg_volume;
+        const volume = Math.max(1, Math.round(_randomDistribution(avgVol, avgVol * 0.15)));
+        const lotSize = Math.floor(Math.random() * (500 - 50)) + 50;
+        const trade_count = Math.floor(volume / lotSize);
+        const notional = +(close * volume).toFixed(2);
+
+        const index_fund = meta.index_fund[Math.floor(Math.random() * meta.index_fund.length)];
+        const client = CLIENTS[Math.floor(Math.random() * CLIENTS.length)];
+        const country = "United States";
+        const trade_date = (new Date()).toISOString().slice(0, 10);
+        const last_update = _nowISO();
+
+        results.push({
+            ticker: meta.ticker,
+            sector: meta.sector,
+            // ...
+        });
+    }
+    return results;
 }
 ```
 
-It then, inserts the data into the table using the TDengine's websocket APIs:
+It then inserts the data into the table using the TDengine WebSocket batch API:
 
 ```javascript
 async function toasInsertData(conn, data, databaseName = TAOS_DATABASE, tableName = TAOS_TABLENAME) {
     try {
-        // pick a random subtable
-        const subTableId = Math.floor(Math.random() * LOCATIONS.length);
-        const groupId = subTableId;
-        const locationName = LOCATIONS[subTableId];
-        const subTableName = `d_meters_${subTableId}`;
+        const sql = `
+            INSERT INTO ${databaseName}.${tableName} 
+            (ts, ticker, sector, state, index_fund, open, high, low, close, volume, trade_count, notional, client, country, trade_date, last_update)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
 
         let stmt = await conn.stmtInit();
-        await stmt.prepare(`INSERT INTO ? USING ${databaseName}.${tableName} tags(?,?) VALUES (?,?,?,?)`);
-        await stmt.setTableName(subTableName);
+        await stmt.prepare(sql);
 
-        // set tags
-        let tagParams = stmt.newStmtParam();
-        tagParams.setVarchar([locationName]);
-        tagParams.setInt([groupId]);
-        await stmt.setTags(tagParams);
-        // set data
         let bindParams = stmt.newStmtParam();
-        bindParams.setTimestamp(data.map(row => row.ts));
-        bindParams.setFloat(data.map(row => row.current));
-        bindParams.setInt(data.map(row => row.voltage));
-        bindParams.setFloat(data.map(row => row.phase));
+        bindParams.setTimestamp(data.map(row => new Date(row.last_update).getTime()));
+        bindParams.setVarchar(data.map(row => row.ticker));
+        // ...
+
         await stmt.bind(bindParams);
         await stmt.batch();
         await stmt.exec();
-        console.log(`Inserted ${data.length} rows into -- table: ${TAOS_TABLENAME}, subtable: ${subTableName}, location: ${locationName}`);
+        console.log(`Inserted ${data.length} rows into table: ${databaseName}.${tableName}`);
     } catch (err) {
-        console.error(`Failed to insert rows into ${TAOS_TABLENAME}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
-        throw err
+        console.error(`Failed to insert rows into ${tableName}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
+        throw err;
     }
 }
 ```
@@ -153,31 +209,55 @@ node src/server.js
 
 <br/>
 
-This script constrcuts a Perspective websocket server and a Perspective Table:
+This script constructs a Perspective WebSocket server and a Perspective Table:
 
 ```javascript
+const perspective = require("@finos/perspective-node");
+const { taosQuery } = require("./tdengine_query"); // Example: your TDengine query function
+
+const PRSP_TABLE_NAME = "market";
+const PRSP_TABLE_LIMIT = 10000;
+
 const ws = new perspective.WebSocketServer({ port: 8080 });
 
-...
-
 async function prspCreatePerspectiveTable() {
-    // create an empty table with schema
+    // Create a table with schema matching the market data
     const schema = {
         ts: "datetime",
-        current: "float",
-        voltage: "float",
-        phase: "string",
-        location: "string",
-        groupid: "integer",
+        ticker: "string",
+        sector: "string",
+        state: "string",
+        index_fund: "string",
+        open: "float",
+        high: "float",
+        low: "float",
+        close: "float",
+        volume: "integer",
+        trade_count: "integer",
+        notional: "float",
+        client: "string",
+        country: "string",
+        trade_date: "datetime",
+        last_update: "datetime"
     };
-    // create a table with schema and row limit
-    // other supported formats: "json", "columns", "csv" or "arrow", "ndjson"
-    const table = await perspective.table(schema, { name: PRSP_TABLE_NAME, limit: PRSP_TABLE_LIMIT, format: "json" });
+    // Create a table with schema and row limit
+    const table = await perspective.table(schema, { name: PRSP_TABLE_NAME, limit: PRSP_TABLE_LIMIT, index: "ts" });
     return table;
 }
+
+(async () => {
+    const table = await prspCreatePerspectiveTable();
+    ws.host_table(PRSP_TABLE_NAME, table);
+
+    setInterval(async () => {
+        const data = await taosQuery(); // Should return an array of market data objects
+        await table.update(data);
+    }, 250); // Refreshes the Perspective table every 250ms
+})();
 ```
 
-It then queries TDengine table and updates the Perspective Table on an interval:
+It then queries the TDengine table and updates the Perspective Table on an interval:
+
 ```javascript
 setInterval(async () => {
     const data = await taosQuery(conn);
@@ -228,9 +308,18 @@ Open the Vite development server URL (e.g., `http://localhost:3000`) in your bro
    ```javascript
    viewer.restore({
        plugin: "Datagrid",
-       group_by: ["location"],
-       columns: ["ts", "current", "voltage", "phase", "location", "groupid"],
-       aggregates: { current: "mean", voltage: "mean" },
+       group_by: ["ticker"],
+       columns: ["last_update",
+                "open",
+                "high",
+                "low",
+                "volume",
+                "trade_count",
+                "notional",
+                "sector",],
+       aggregates: { last_update: "last", open: "mean",
+                    high: "mean", low: "mean", volume: "sum",
+                    trade_count: "sum", notional: "sum", sector: "distinct" },
    });
    ```
 
@@ -250,7 +339,7 @@ To stop all running processes:
 
 - **Always** use the latest version of Perspective libraries. Check the [**Perspective releases**](https://github.com/finos/perspective/releases) for the latest version.
 - This example is using Perspective version `3.4.3`.
-- Ensure all ports (e.g., `8080` for the WebSocket server, `3000` for Vite) are available before running the demo.
+- Ensure all ports (eg. `8080` for the WebSocket server, `3000` for Vite) are available before running the demo.
 
 <br/><br/>
 

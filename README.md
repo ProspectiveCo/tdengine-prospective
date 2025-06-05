@@ -18,7 +18,7 @@ Together with TDengine and Perspective users can build high-performance -- milli
 
 ## Client Libraries: Connecting to Real-time data
 
-Both TDengine and Perspective provide a vast library of client libraries (Node, Python, Rust, ...). In this document we provide two examples using both [Node](./node/README.md) and [Python](./python/README.md) backend. 
+Both TDengine and Perspective provide a vast library of client libraries (Node, Python, Rust, ...). In this document we provide two examples using both [Node](./node/README.md) and [Python](https://github.com/ProspectiveCo/perspective-examples/tree/main/examples/tdengines) backend. 
 
 In both examples:
 
@@ -34,11 +34,5 @@ In both examples:
 ## Node
 
 To setup TDengine and Perspective wiht a node backend, please follow [these](./node/README.md) instructions.
-
-<br/>
-
-## Python
-
-To setup TDengine and Perspective wiht a node backend, please follow [these](./python/README.md) instructions.
 
 <br/>
