@@ -6,27 +6,22 @@ import taos from "@tdengine/websocket";
     * Change the connection type to 'cloud' or 'docker' as needed.
  ----------------------------------------------------------------
  */
+const TAOS_CONNECTION_TYPE = 'cloud'; // 'cloud' or 'local' (docker)
 
-const TAOS_CONNECTION_TYPE = 'cloud';       // 'cloud' or 'local'
 
-let TAOS_CONNECTION_URL, TAOS_USER, TAOS_PASSWORD, TAOS_DATABASE, TAOS_TABLENAME;
+let TAOS_CONNECTION_URL, TAOS_USER, TAOS_PASSWORD;
+
+const TAOS_DATABASE = 'webinar';
+const TAOS_TABLENAME = 'market';
 
 if (TAOS_CONNECTION_TYPE === 'cloud') {
-    // TDengine Cloud information
-    const TDENGINE_CLOUD_TOKEN = process.env.TDENGINE_CLOUD_TOKEN || 'your_tdengine_cloud_token_here';
-    TAOS_CONNECTION_URL = `wss://gw.us-west-2.aws.cloud.tdengine.com?token=${TDENGINE_CLOUD_TOKEN}`;
-    TAOS_DATABASE = 'webinar';
-    TAOS_TABLENAME = 'market';
+    // TDengine Cloud connection
+    TAOS_CONNECTION_URL = process.env.TDENGINE_CLOUD_URL || `wss://YOUR_CLOUD_REGION.cloud.tdengine.com?token=YOUR_TDENGINE_CLOUD_TOKEN`;
 } else if (TAOS_CONNECTION_TYPE === 'local') {
-    // TDengine local docker information
+    // TDengine local docker connection
     TAOS_CONNECTION_URL = 'ws://localhost:6041';
     TAOS_USER = 'root';
     TAOS_PASSWORD = 'taosdata';
-    TAOS_DATABASE = 'webinar';
-    TAOS_TABLENAME = 'market';
-} else {
-    console.error("Invalid TAOS_CONNECTION_TYPE. Please set it to 'cloud' or 'docker'.");
-    process.exit(1);
 }
 
 /* -------------------------------------------------------------
@@ -160,6 +155,7 @@ async function taosCreateConnection(
         let conf, conn;
         if (TAOS_CONNECTION_TYPE === 'cloud') {
             conf = new taos.WSConfig(url);
+            conf.setTimeOut(15_000);
             conn = await taos.sqlConnect(conf);
             console.log(`Connected to TDengine Cloud at ${url} successfully.`);
             return conn;

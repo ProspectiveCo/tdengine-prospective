@@ -1,18 +1,36 @@
 import perspective from "@finos/perspective";
 import * as taos from "@tdengine/websocket";
 
+/* -------------------------------------------------------------
+    * TDengine connection information
+    * Change the connection type to 'cloud' or 'local' as needed.
+ ----------------------------------------------------------------
+ */
+const TAOS_CONNECTION_TYPE = 'cloud'; // 'cloud' or 'local' (docker)
 
-// TDengine configuration
-const TAOS_CONNECTION_URL = 'ws://localhost:6041';
-const TAOS_USER = 'root';
-const TAOS_PASSWORD = 'taosdata';
-const TAOS_DATABASE = 'power';
-const TAOS_TABLENAME = 'meters';
 
-// Perspective configuration
+let TAOS_CONNECTION_URL, TAOS_USER, TAOS_PASSWORD;
+
+const TAOS_DATABASE = 'webinar';
+const TAOS_TABLENAME = 'market';
+
+if (TAOS_CONNECTION_TYPE === 'cloud') {
+    // TDengine Cloud connection
+    TAOS_CONNECTION_URL = process.env.TDENGINE_CLOUD_URL || `wss://YOUR_CLOUD_REGION.cloud.tdengine.com?token=YOUR_TDENGINE_CLOUD_TOKEN`;
+} else if (TAOS_CONNECTION_TYPE === 'local') {
+    // TDengine local docker connection
+    TAOS_CONNECTION_URL = 'ws://localhost:6041';
+    TAOS_USER = 'root';
+    TAOS_PASSWORD = 'taosdata';
+}
+
+/* -------------------------------------------------------------
+    * Perspective table information
+ ----------------------------------------------------------------
+ */
 const PRSP_TABLE_NAME = TAOS_TABLENAME;
-const PRSP_TABLE_LIMIT = 100_000;                  // Limit for the Perspective table nmber of rows
-const PRSP_TABLE_REFRESH_INTERVAL = 250;           // Refresh interval in milliseconds
+const PRSP_TABLE_LIMIT = 100_000;               // Maximum number of rows in the Perspective table
+const PRSP_TABLE_REFRESH_INTERVAL = 250;        // Refresh interval in milliseconds
 
 
 /**
@@ -20,51 +38,75 @@ const PRSP_TABLE_REFRESH_INTERVAL = 250;           // Refresh interval in millis
  */
 async function taosCreateConnection(
     url = TAOS_CONNECTION_URL, 
-    user = TAOS_USER, 
-    password = TAOS_PASSWORD
+    user = (TAOS_USER || null), 
+    password = (TAOS_PASSWORD || null)
 ) {
     try {
-        let conf = new taos.WSConfig(url);
-        conf.setUser(user);
-        conf.setPwd(password);
-        const conn = await taos.sqlConnect(conf);
-        console.log(`Connected to ${url} successfully.`);
-        return conn;
+        let conf, conn;
+        if (TAOS_CONNECTION_TYPE === 'cloud') {
+            conf = new taos.WSConfig(url);
+            conf.setTimeOut(15_000);
+            conn = await taos.sqlConnect(conf);
+            console.log(`Connected to TDengine Cloud at ${url} successfully.`);
+            return conn;
+        } else if (TAOS_CONNECTION_TYPE === 'local') {
+            conf = new taos.WSConfig(url);
+            conf.setUser(user);
+            conf.setPwd(password);
+            conn = await taos.sqlConnect(conf);
+            console.log(`Connected to local TDengine at ${url} successfully.`);
+            return conn;
+        } else {
+            throw new Error("Invalid TAOS_CONNECTION_TYPE. Please set it to 'cloud' or 'local'.");
+        }
     } catch (err) {
         console.error(`Failed to connect to ${url}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
+        if (TAOS_CONNECTION_TYPE === 'local') {
+            console.log("Please run `/docker.sh` to start the TDengine docker container.");
+        }
         process.exit(1);
     }
 }
 
 /**
- * Query the TDengine meters table and return the result as an array of objects.
+ * Query the TDengine market table and return the result as an array of objects.
  */
 async function taosQuery(conn, databaseName = TAOS_DATABASE, tableName = TAOS_TABLENAME) {
     try {
-        const sql = `
-            SELECT 
-                ts, current, voltage, phase, location, groupid 
-            FROM ${databaseName}.${tableName} 
-            ORDER BY ts DESC
-            LIMIT ${PRSP_TABLE_LIMIT};
-        `;
+        const sql =
+            'SELECT ' +
+            '`ts`, `ticker`, `sector`, `state`, `index_fund`, `open`, `high`, `low`, `close`, `volume`, `trade_count`, `notional`, `client`, `country`, `trade_date`, `last_update` ' +
+            'FROM `' + databaseName + '`.`' + tableName + '` ' +
+            'ORDER BY `ts` DESC ' +
+            'LIMIT ' + PRSP_TABLE_LIMIT + ';';
+        console.log(sql);
         const wsRows = await conn.query(sql);
         const data = [];
         while (await wsRows.next()) {
             let row = wsRows.getData();
             data.push({
-                ts: new Date(Number(row[0])),       // convert to timestamp
-                current: row[1],
-                voltage: row[2],
-                phase: row[3],
-                location: row[4],
-                groupid: row[5],
+                ts: new Date(Number(row[0])),
+                ticker: row[1],
+                sector: row[2],
+                state: row[3],
+                index_fund: row[4],
+                open: Number(row[5]),
+                high: Number(row[6]),
+                low: Number(row[7]),
+                close: Number(row[8]),
+                volume: Number(row[9]),
+                trade_count: Number(row[10]),
+                notional: Number(row[11]),
+                client: row[12],
+                country: row[13],
+                trade_date: new Date(Number(row[14])),
+                last_update: new Date(Number(row[15])),
             });
         }
         return data;
     } catch (err) {
         console.error(`Failed to query table ${databaseName}.${tableName}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
-        throw err;
+        // throw err;
     }
 }
 
@@ -72,17 +114,25 @@ async function taosQuery(conn, databaseName = TAOS_DATABASE, tableName = TAOS_TA
  * Create a Perspective table to host on the websocket.
  */
 async function prspCreatePerspectiveTable() {
-    // create an empty table with schema
+    // Schema matches generateData() in producer.js
     const schema = {
         ts: "datetime",
-        current: "float",
-        voltage: "float",
-        phase: "string",
-        location: "string",
-        groupid: "integer",
+        ticker: "string",
+        sector: "string",
+        state: "string",
+        index_fund: "string",
+        open: "float",
+        high: "float",
+        low: "float",
+        close: "float",
+        volume: "integer",
+        trade_count: "integer",
+        notional: "float",
+        client: "string",
+        country: "string",
+        trade_date: "datetime",
+        last_update: "datetime",
     };
-    // create a table with schema and row limit
-    // other supported formats: "json", "columns", "csv" or "arrow", "ndjson"
     const table = await perspective.table(schema, { name: PRSP_TABLE_NAME, limit: PRSP_TABLE_LIMIT, format: "json" });
     return table;
 }
