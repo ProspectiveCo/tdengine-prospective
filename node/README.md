@@ -39,7 +39,7 @@ This guide will walk you through the following steps:
 To run this demo:
 
 ```bash
-git clone
+git clone https://github.com/ProspectiveCo/tdengine-prospective.git
 
 cd tdengine-prospective
 npm install
