@@ -27,7 +27,7 @@ In both examples:
 3. Perspective server broadcasts data to clients
 4. Clients use `<perspective-viewer>` on the browser to view and interact with real-time data.
 
-![TOAS Perspective Architecture](./imgs/taos_prsp_arch_combined.png)
+![TOAS Perspective Architecture](./imgs/webinar_architecture_light.png)
 
 <br/><br/>
 
