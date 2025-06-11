@@ -79,7 +79,7 @@ async function taosQuery(conn, databaseName = TAOS_DATABASE, tableName = TAOS_TA
             'FROM `' + databaseName + '`.`' + tableName + '` ' +
             'ORDER BY `ts` DESC ' +
             'LIMIT ' + PRSP_TABLE_LIMIT + ';';
-        console.log(sql);
+        // console.log(sql);
         const wsRows = await conn.query(sql);
         const data = [];
         while (await wsRows.next()) {
